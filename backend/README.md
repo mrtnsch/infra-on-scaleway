@@ -23,9 +23,14 @@ Requires Docker (for Postgres and for the test suite) and nothing else — the G
 its own toolchain.
 
 ```bash
+cd backend
 ./gradlew bootRun    # starts compose.yaml's Postgres, migrates, serves on :8080
 curl localhost:8080/jokes/random
 ```
+
+Run it with `backend/` as the working directory — `compose.yaml` is resolved relative to it. In an
+IDE, set the run configuration's working directory to this module, otherwise startup fails with
+"No Docker Compose file found in directory".
 
 Liquibase creates the `jokes` schema and seeds a handful of jokes, so the API answers immediately.
 Sample requests live in [`.http/joke-api.http`](.http/joke-api.http).

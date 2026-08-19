@@ -12,6 +12,10 @@ Run from `backend/`. The Gradle wrapper is `./gradlew`.
 
 - **Build:** `./gradlew build`
 - **Run:** `./gradlew bootRun` (starts `compose.yaml`'s Postgres automatically)
+  - Must run with `backend/` as the working directory: `spring-boot-docker-compose` resolves
+    `compose.yaml` against the process working directory, so an IDE run configuration inheriting the
+    repository root fails with "No Docker Compose file found in directory". Set the run
+    configuration's working directory to the `backend` module.
 - **Compile only (fast feedback):** `./gradlew compileKotlin`
 - **Test (all):** `./gradlew test` — needs Docker for Testcontainers
 - **Single test class:** `./gradlew test --tests '*JokeControllerIntegrationTest'`
@@ -33,7 +37,7 @@ jokes/                            (package dev.martinschwarz.jokes)
 │   │                             rule. JokeError is the failure vocabulary.
 │   └── port/out/                 driven port: JokeStore
 └── adapter/
-    ├── inbound/web/              JokeController implements the generated JokesApi
+    ├── inbound/web/              JokeController implements the generated JokesApi; CorsConfig
     └── out/persistence/          JokeEntity, JokeJpaRepository, JokePersistenceAdapter
 ```
 
@@ -84,6 +88,9 @@ directly. Add them if a second inbound adapter ever appears.
   models (suffix `DTO`). Controllers implement the generated `*Api`; **never hand-write a mapping
   that the spec should describe** — change the spec first.
 - Domain ↔ DTO mapping via private extension functions in the controller file.
+- CORS is env-driven (`CORS_ALLOWED_ORIGINS`, defaulting to the frontend dev server on 5173) via
+  `CorsProperties`/`CorsConfig` — never hard-code an origin, and keep credentials off while the API
+  is unauthenticated.
 - Contract-level bounds (`minLength`, `maximum`, …) are enforced by generated bean-validation
   annotations and re-checked in `validateContent`, so the rule holds even for non-HTTP callers.
 
