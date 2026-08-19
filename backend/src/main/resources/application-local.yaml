@@ -1,0 +1,13 @@
+# Local development overrides. Committed on purpose — keep it SECRET-FREE. Active by default (see
+# spring.profiles.default), so `./gradlew bootRun` against the compose Postgres needs no extra config.
+spring:
+  config:
+    # Loads personal, gitignored overrides if the file exists; silently skipped otherwise.
+    import: optional:file:./config/local.yaml
+  jpa:
+    show-sql: true
+
+management:
+  endpoint:
+    health:
+      show-details: always

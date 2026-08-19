@@ -1,0 +1,28 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+# Anchored: the hexagonal packages `adapter/out` and `port/out` must stay tracked.
+/out/
+
+### VS Code ###
+.vscode/
+
+### Kotlin ###
+.kotlin
+
+### Local secrets / overrides (never commit) ###
+.http/http-client.private.env.json
+config/local.yaml
+*.local.yaml
+.env
+.env.local
+/src/main/resources/local.yaml

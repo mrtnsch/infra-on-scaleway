@@ -1,0 +1,23 @@
+### List jokes (newest first)
+GET {{host}}/jokes?page=0&size=20
+
+### List only programming jokes
+GET {{host}}/jokes?category=PROGRAMMING
+
+### Draw a random joke
+GET {{host}}/jokes/random
+
+### Draw a random dad joke
+GET {{host}}/jokes/random?category=DAD
+
+### Add a joke
+POST {{host}}/jokes
+Content-Type: application/json
+
+{
+  "content": "I would tell you a UDP joke, but you might not get it.",
+  "category": "PROGRAMMING"
+}
+
+### Health
+GET {{host}}/actuator/health

@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: backend
+  # Profile used when SPRING_PROFILES_ACTIVE is unset (i.e. local dev). Deployed environments MUST
+  # set SPRING_PROFILES_ACTIVE=prod explicitly.
+  profiles:
+    default: local
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_schema: jokes
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    default-schema: jokes
+    liquibase-schema: public
+    database-change-log-table: liquibase_changelogs
+    database-change-log-lock-table: liquibase_changelogs_lock
+    enabled: true
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true

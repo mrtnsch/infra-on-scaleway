@@ -1,0 +1,12 @@
+# Production overrides. Activate with SPRING_PROFILES_ACTIVE=prod. NON-SECRET deltas only; secrets
+# (DB_PASSWORD, ...) are injected as env vars and resolved by the placeholders in application.yaml.
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 30
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    liquibase: WARN

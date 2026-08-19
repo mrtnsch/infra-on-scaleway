@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-5.0.xsd">
+
+    <changeSet id="20260819-create-jokes" author="martin">
+        <createTable tableName="jokes">
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_jokes"/>
+            </column>
+            <column name="content" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="category" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Backstop for the duplicate check on create; content is normalized before it is stored. -->
+        <addUniqueConstraint tableName="jokes" columnNames="category, content" constraintName="uq_jokes_category_content"/>
+        <createIndex tableName="jokes" indexName="idx_jokes_category_created_at">
+            <column name="category"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+        <createIndex tableName="jokes" indexName="idx_jokes_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260819-seed-jokes" author="martin">
+        <comment>Seed the catalogue so a fresh deployment answers /jokes/random immediately.</comment>
+        <loadData tableName="jokes" file="db/changelog/2026/08/19-jokes-seed.csv" separator=";">
+            <column name="id" type="UUID"/>
+            <column name="content" type="STRING"/>
+            <column name="category" type="STRING"/>
+        </loadData>
+    </changeSet>
+</databaseChangeLog>
