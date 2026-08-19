@@ -55,3 +55,12 @@ entry points.
   headers are bucket/upload settings, not something this app can control — see
   the deployment section of `README.md` before assuming a redirect or a header
   will be there.
+- **`pnpm build` fails if `VITE_API_BASE_URL` is not an absolute URL.** The CSP
+  plugin derives `connect-src` from its origin, and a wrong value there blocks
+  every API call at runtime — better a loud build than a silent one.
+- **The CSP is a `<meta>` tag, injected on `build` only** (`cspMeta` in
+  `vite.config.ts`). Dev is deliberately unconstrained: Vite serves an inline
+  Fast Refresh preamble that `script-src 'self'` would kill, and loosening the
+  shipped policy to accommodate it would be the wrong trade. If you add a
+  third-party script, font host or analytics endpoint, the policy is where it
+  has to be allowed — and it will fail closed until you do.

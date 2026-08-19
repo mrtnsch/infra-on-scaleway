@@ -112,6 +112,31 @@ aws s3 cp dist/index.html s3://$BUCKET/index.html --endpoint-url https://s3.fr-p
 `aws` reads `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, which the repo-root
 `mise.toml` already mirrors from the `SCW_*` pair.
 
+**3. Security headers.** The Content-Security-Policy travels _inside_
+`index.html`, as a `<meta>` tag injected at build time by the `cspMeta` plugin
+in `vite.config.ts` — a bucket cannot attach a custom response header, so the
+document is the only delivery channel left. `connect-src` is derived from
+`VITE_API_BASE_URL`, which is why an absolute URL is now required to build.
+
+The policy is strict where it can be — `script-src 'self'` with no hash, nonce
+or `'unsafe-inline'`, because the built `index.html` references one external
+module and nothing else. `style-src` keeps `'unsafe-inline'`: React's `style`
+prop and Radix's positioning both emit inline style _attributes_, which that
+directive covers.
+
+What a meta tag **cannot** do, and therefore what belongs on a CDN in front
+(Scaleway Edge Services) as real response headers:
+
+| Header                                       | Why it can't come from the bucket                             |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| `Content-Security-Policy: frame-ancestors …` | Ignored in a `<meta>` tag; the browser says so in the console |
+| `X-Content-Type-Options: nosniff`            | Header-only                                                   |
+| `Referrer-Policy: no-referrer`               | Header-only                                                   |
+| `Strict-Transport-Security`                  | Header-only                                                   |
+
+The full policy is written out in `vite.config.ts` including `frame-ancestors`,
+so moving it to a response header later is a copy rather than a rewrite.
+
 ### Contract for the infra agent
 
 - Artifact: the contents of `frontend/dist/`, produced by `pnpm build`. Nothing
@@ -122,4 +147,6 @@ aws s3 cp dist/index.html s3://$BUCKET/index.html --endpoint-url https://s3.fr-p
 - Bucket needs public read, index document `index.html`, **error document
   `index.html`**.
 - Cache headers are the uploader's job — see above.
+- A CSP ships inside `index.html`; `frame-ancestors` and the other header-only
+  defences need a CDN in front. See above.
 - The backend must allow the site's origin via CORS.
