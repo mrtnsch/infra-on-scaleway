@@ -17,3 +17,40 @@ staged() { git diff --cached --name-only --diff-filter=ACM -- "*$1" | sed "s|^ia
 for f in $(staged .tf); do tofu fmt "$f"; git add "$f"; done
 for f in $(staged .hcl); do terragrunt hcl fmt --file="$f"; git add "$f"; done
 '''
+
+# Terragrunt resolves `include "root"` by walking up, so every unit must be
+# invoked from inside live/ — hence --working-dir rather than a `dir` per task.
+
+[tasks.plan]
+description = "Preview one live unit, e.g. `mise run //iac:plan dev/backend`"
+dir = "{{config_root}}/live"
+usage = 'arg "<unit>" help="Path of the unit under live/, e.g. shared or dev/backend"'
+run = 'terragrunt --working-dir "$usage_unit" plan'
+
+[tasks.apply]
+description = "Apply one live unit, e.g. `mise run //iac:apply shared`. Creates billable resources."
+dir = "{{config_root}}/live"
+usage = 'arg "<unit>" help="Path of the unit under live/, e.g. shared or dev/backend"'
+run = 'terragrunt --working-dir "$usage_unit" apply'
+
+# Named shortcuts, one per live unit.
+
+[tasks."plan:shared"]
+description = "Preview the shared unit (state bucket, container registry)"
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir shared plan"
+
+[tasks."apply:shared"]
+description = "Apply the shared unit. Creates billable resources."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir shared apply"
+
+[tasks."plan:dev"]
+description = "Preview dev/backend (VPC, PostgreSQL, Joke API container)"
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/backend plan"
+
+[tasks."apply:dev"]
+description = "Apply dev/backend. Creates billable resources."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/backend apply"

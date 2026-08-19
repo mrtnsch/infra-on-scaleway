@@ -1,7 +1,7 @@
 monorepo_root = true
 
 [monorepo]
-config_roots = ["iac", "frontend"]
+config_roots = ["iac", "backend", "frontend"]
 
 [tools]
 # >= 1.12 required: `use_lockfile` (native S3 state locking) does not exist before it.

@@ -22,6 +22,9 @@ Run from `backend/`. The Gradle wrapper is `./gradlew`.
 - **Lint check:** `./gradlew ktlintCheck` · **auto-format:** `./gradlew ktlintFormat`
 - **Static analysis:** `./gradlew detekt` · **coverage:** `./gradlew koverHtmlReport`
 - **Regenerate API stubs/DTOs:** `./gradlew openApiGenerate` (a dependency of `compileKotlin`)
+- **Build and push the deployment image:** `mise run //backend:image <tag>` — resolves the registry
+  from the `shared` IaC unit and logs in itself. The tag must match `image_tag` in
+  `iac/live/<env>/backend/terragrunt.hcl`, which is what actually selects the deployed build.
 
 > ktlint/format race: don't chain `format` and `check` in one Gradle invocation — they have no
 > ordering dependency and may run out of order. Run format first, then check, as separate commands.

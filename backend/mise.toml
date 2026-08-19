@@ -1,0 +1,18 @@
+[tasks.image]
+description = "Build the backend image and push it, e.g. `mise run //backend:image 0.0.2`"
+dir = "{{config_root}}"
+usage = 'arg "<tag>" help="Image tag; must match image_tag in live/<env>/backend/terragrunt.hcl"'
+run = '''
+set -euo pipefail
+
+# The shared unit owns the registry namespace, so its output is the one
+# authoritative answer to where images belong.
+endpoint=$(terragrunt --working-dir ../iac/live/shared output -raw registry_endpoint)
+image="$endpoint/joke-api:$usage_tag"
+
+printf '%s' "$SCW_SECRET_KEY" | docker login "${endpoint%%/*}" --username nologin --password-stdin
+docker build -t "$image" .
+docker push "$image"
+
+echo "pushed $image"
+'''

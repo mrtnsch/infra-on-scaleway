@@ -7,5 +7,6 @@ terraform {
 }
 
 inputs = {
-  state_bucket_name = "infra-on-scaleway-tfstate"
+  state_bucket_name       = "infra-on-scaleway-tfstate"
+  registry_namespace_name = "infra-on-scaleway"
 }

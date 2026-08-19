@@ -37,3 +37,28 @@ provider "scaleway" {
 }
 PROVIDERS
 }
+
+# Every module gets its provider requirements from here rather than carrying its
+# own versions.tf — one place to bump a version, and no drift between modules.
+# The trade-off: `tofu` run directly inside catalog/ has no provider source and
+# will not init. Go through terragrunt.
+generate "versions" {
+  path      = "versions.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<VERSIONS
+terraform {
+  required_version = ">= 1.12"
+
+  required_providers {
+    scaleway = {
+      source  = "scaleway/scaleway"
+      version = "~> 2.81"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
+  }
+}
+VERSIONS
+}
