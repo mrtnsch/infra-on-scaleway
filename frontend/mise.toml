@@ -13,12 +13,8 @@ run = "pnpm verify"
 description = "Prettier + ESLint on staged frontend files"
 dir = "{{config_root}}"
 run = '''
-# --relative scopes the listing to this directory and prints paths relative to
-# it, which is exactly what prettier/eslint want as arguments.
-staged() { git diff --cached --name-only --diff-filter=ACM --relative | grep -E "$1" || true; }
-
-pfiles=$(staged '\.(ts|tsx|js|jsx|mjs|cjs|json|css|md)$')
-efiles=$(staged '\.(ts|tsx|js|jsx|mjs|cjs)$')
+pfiles=$("$MISE_MONOREPO_ROOT"/scripts/staged.sh .ts .tsx .js .jsx .mjs .cjs .json .css .md) || exit 1
+efiles=$("$MISE_MONOREPO_ROOT"/scripts/staged.sh .ts .tsx .js .jsx .mjs .cjs) || exit 1
 
 if [ -n "$pfiles" ]; then echo "$pfiles" | xargs pnpm exec prettier --check; fi
 if [ -n "$efiles" ]; then echo "$efiles" | xargs pnpm exec eslint; fi

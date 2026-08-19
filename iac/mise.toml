@@ -15,10 +15,16 @@ terragrunt hcl fmt
 description = "Auto-format staged .tf/.hcl under iac/ and re-stage them"
 dir = "{{config_root}}"
 run = '''
-staged() { git diff --cached --name-only --diff-filter=ACM -- "*$1" | sed "s|^iac/||"; }
+tffiles=$("$MISE_MONOREPO_ROOT"/scripts/staged.sh .tf) || exit 1
+hclfiles=$("$MISE_MONOREPO_ROOT"/scripts/staged.sh .hcl) || exit 1
 
-for f in $(staged .tf); do tofu fmt "$f"; git add "$f"; done
-for f in $(staged .hcl); do terragrunt hcl fmt --file="$f"; git add "$f"; done
+if [ -n "$tffiles" ]; then
+  echo "$tffiles" | while IFS= read -r f; do tofu fmt "$f"; git add "$f"; done
+fi
+
+if [ -n "$hclfiles" ]; then
+  echo "$hclfiles" | while IFS= read -r f; do terragrunt hcl fmt --file="$f"; git add "$f"; done
+fi
 '''
 
 # Terragrunt resolves `include "root"` by walking up, so every unit must be

@@ -21,3 +21,11 @@ AWS_REGION            = "fr-par"
 [settings]
 experimental     = true
 env_shell_expand = true
+
+[tasks.pre-commit]
+description = "Run lint/format checks on staged files across all projects"
+depends = ["//iac:pre-commit", "//frontend:pre-commit"]
+
+[tasks.install-hooks]
+description = "Install the git pre-commit hook (runs `mise run pre-commit`)"
+run = "mise generate git-pre-commit --write --task pre-commit"

@@ -10,3 +10,6 @@ Demo application and its infrastructure on Scaleway.
 
 Tool versions are pinned per directory with [mise](https://mise.jdx.dev):
 `mise install`.
+
+Formatting and lint checks run on staged files before every commit:
+`mise run install-hooks` once per clone.
