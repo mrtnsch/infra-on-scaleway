@@ -16,4 +16,10 @@ inputs = {
   image_tag         = "0.0.1"
 
   custom_hostname = "jokes-api.martinschwarz.dev"
+
+  environment_variables = {
+    SPRING_PROFILES_ACTIVE                     = "prod"
+    CORS_ALLOWED_ORIGINS                       = "https://jokes.martinschwarz.dev"
+    SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE = "10"
+  }
 }

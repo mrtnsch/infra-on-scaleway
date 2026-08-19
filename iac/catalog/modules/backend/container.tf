@@ -21,16 +21,12 @@ resource "scaleway_container" "backend" {
   https_connections_only = true
   private_network_id     = scaleway_vpc_private_network.main.id
 
-  environment_variables = {
-    SPRING_PROFILES_ACTIVE = "prod"
-    DB_URL                 = "jdbc:postgresql://${local.db_host}:${local.db_port}/${scaleway_rdb_database.main.name}"
-    DB_USERNAME            = scaleway_rdb_user.app.name
-
-    # application-prod.yaml hardcodes a Hikari pool of 30. At max_scale that is
-    # 30 x instances against one db-dev-s. Relaxed binding lets infra cap it
-    # without touching app code.
-    SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE = tostring(var.db_pool_size)
-  }
+  # Only the values this module creates live here; everything else comes from
+  # the live unit and wins on conflict.
+  environment_variables = merge({
+    DB_URL      = "jdbc:postgresql://${local.db_host}:${local.db_port}/${scaleway_rdb_database.main.name}"
+    DB_USERNAME = scaleway_rdb_user.app.name
+  }, var.environment_variables)
 
   secret_environment_variables = {
     DB_PASSWORD = random_password.db_app.result

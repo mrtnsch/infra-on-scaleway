@@ -58,12 +58,6 @@ variable "db_app_username" {
   default     = "joke_api"
 }
 
-variable "db_pool_size" {
-  description = "Hikari maximum pool size per container instance, overriding application-prod.yaml"
-  type        = number
-  default     = 10
-}
-
 variable "min_scale" {
   description = "Minimum container instances; 1 keeps a warm instance and avoids cold starts"
   type        = number
@@ -80,4 +74,10 @@ variable "concurrent_requests_threshold" {
   description = "Concurrent requests per instance before scaling out"
   type        = number
   default     = 50
+}
+
+variable "environment_variables" {
+  description = "Plaintext environment variables to set on the container, merged over the ones derived from infrastructure (DB_URL, DB_USERNAME)"
+  type        = map(string)
+  default     = {}
 }
