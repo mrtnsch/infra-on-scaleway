@@ -245,6 +245,21 @@ reads the pipeline off `dev/frontend-deps`' state, so — like `dev/backend` and
 constraints still hold: set the low TTL before creating the record, and allow
 `letsencrypt.org` in any `CAA` record on the zone.
 
+Only the pipeline lives in `frontend_deps`, and that is a hard limit rather than
+a choice. Certificate issuance is lazy — a TLS stage created with
+`managed_certificate = true` and no FQDN anywhere returns instantly with an
+empty `certificate_expires_at` — so on that count the TLS stage could sit with
+the pipeline. What stops it is that **every stage must name the next one toward
+the origin**: an unlinked TLS stage makes `scaleway_edge_services_head_stage`
+fail with `next stage missing`, and Scaleway then refuses to delete that stage
+while the DNS stage still points at it (a bare HTTP 500). Since the next stage
+is the cache stage, and that needs the bucket, the TLS stage belongs in
+`dev/frontend`. `dev/frontend`
+reads the pipeline off `dev/frontend-deps`' state, so — like `dev/backend` and
+`shared` — it cannot even plan until that unit is applied. The usual DNS
+constraints still hold: set the low TTL before creating the record, and allow
+`letsencrypt.org` in any `CAA` record on the zone.
+
 Afterwards, check `edge_cname_target` against `dev/frontend`'s `default_fqdn`:
 the former is a string built from the pipeline ID, and only that comparison
 proves the format still holds. It follows that **replacing the pipeline is a DNS

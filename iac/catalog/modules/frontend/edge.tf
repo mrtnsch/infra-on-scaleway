@@ -23,7 +23,9 @@ resource "scaleway_edge_services_cache_stage" "site" {
   fallback_ttl = var.cache_fallback_ttl
 }
 
-# Gated so an environment can serve on the generated endpoint with no domain.
+# Must name the next stage toward the origin: an unlinked TLS stage makes the
+# head stage fail with "next stage missing". That is why it lives here next to
+# the cache stage rather than in frontend_deps with the pipeline.
 resource "scaleway_edge_services_tls_stage" "site" {
   count = var.custom_hostname == null ? 0 : 1
 
@@ -32,11 +34,14 @@ resource "scaleway_edge_services_tls_stage" "site" {
   managed_certificate = true
 }
 
+# Registering the FQDN is the one thing that needs the CNAME to already resolve,
+# which is why this unit is applied second.
 resource "scaleway_edge_services_dns_stage" "site" {
   pipeline_id = var.pipeline_id
   fqdns       = var.custom_hostname == null ? null : [var.custom_hostname]
 
-  # Link arguments are mutually exclusive, so exactly one is ever set.
+  # Link arguments are mutually exclusive, so exactly one is ever set. With no
+  # domain the generated endpoint carries Scaleway's own certificate.
   tls_stage_id   = var.custom_hostname == null ? null : scaleway_edge_services_tls_stage.site[0].id
   cache_stage_id = var.custom_hostname == null ? scaleway_edge_services_cache_stage.site.id : null
 }
