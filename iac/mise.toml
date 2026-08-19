@@ -1,5 +1,11 @@
 # `terragrunt hcl fmt` formats only .hcl, `tofu fmt` only .tf — both must run.
 
+[tools]
+# >= 1.12 required: `use_lockfile` (native S3 state locking) does not exist before it.
+opentofu   = "1.12.5"
+terragrunt = "1.1.3"
+scaleway   = "2.60.0"
+
 [tasks.fmt]
 description = "Format all .tf and .hcl files under iac/ (rewrites in place)"
 dir = "{{config_root}}"
@@ -36,7 +42,7 @@ run = 'terragrunt --working-dir "$usage_unit" apply'
 # Named shortcuts, one per live unit.
 
 [tasks."plan:shared"]
-description = "Preview the shared unit (state bucket, container registry)"
+description = "Preview the shared unit (state bucket, registry, Edge Services plan)"
 dir = "{{config_root}}/live"
 run = "terragrunt --working-dir shared plan"
 
@@ -45,12 +51,32 @@ description = "Apply the shared unit. Creates billable resources."
 dir = "{{config_root}}/live"
 run = "terragrunt --working-dir shared apply"
 
-[tasks."plan:dev"]
+[tasks."plan:dev-backend"]
 description = "Preview dev/backend (VPC, PostgreSQL, Joke API container)"
 dir = "{{config_root}}/live"
 run = "terragrunt --working-dir dev/backend plan"
 
-[tasks."apply:dev"]
+[tasks."apply:dev-backend"]
 description = "Apply dev/backend. Creates billable resources."
 dir = "{{config_root}}/live"
 run = "terragrunt --working-dir dev/backend apply"
+
+[tasks."plan:dev-frontend-deps"]
+description = "Preview dev/frontend-deps (the Edge Services pipeline). Apply before dev/frontend."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/frontend-deps plan"
+
+[tasks."apply:dev-frontend-deps"]
+description = "Apply dev/frontend-deps. Creates the pipeline whose ID is the CNAME target."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/frontend-deps apply"
+
+[tasks."plan:dev-frontend"]
+description = "Preview dev/frontend (site bucket, CDN stages, custom domain)"
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/frontend plan"
+
+[tasks."apply:dev-frontend"]
+description = "Apply dev/frontend. Needs the CNAME to resolve first."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/frontend apply"

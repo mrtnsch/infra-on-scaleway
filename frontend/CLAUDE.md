@@ -15,6 +15,11 @@ pnpm format         # prettier --write + eslint --fix
 `mise run //frontend:verify` and `//frontend:pre-commit` are the monorepo-level
 entry points.
 
+- **Deploy:** `mise run //frontend:deploy` — reads the bucket and backend URL
+  from the `iac/` live units, builds, and uploads in two passes (hashed assets
+  `immutable`, `index.html` `no-store`, last). No tag to bump, no infra apply —
+  the IaC owns the bucket and CDN, never the content.
+
 ## Conventions
 
 - **Never hand-write an HTTP call.** Everything goes through the generated
@@ -55,12 +60,17 @@ entry points.
   headers are bucket/upload settings, not something this app can control — see
   the deployment section of `README.md` before assuming a redirect or a header
   will be there.
+- **No response header reaches the browser, from anywhere.** Scaleway Edge
+  Services has no header or rewrite capability, so `nosniff`, `Referrer-Policy`
+  and HSTS are absent, CSP `frame-ancestors` is ignored in a meta tag, and deep
+  links answer `404` while rendering fine. Accepted — don't "fix" it with a
+  directive that only works as a header.
 - **`pnpm build` fails if `VITE_API_BASE_URL` is not an absolute URL.** The CSP
   plugin derives `connect-src` from its origin, and a wrong value there blocks
   every API call at runtime — better a loud build than a silent one.
 - **The CSP is a `<meta>` tag, injected on `build` only** (`cspMeta` in
-  `vite.config.ts`). Dev is deliberately unconstrained: Vite serves an inline
-  Fast Refresh preamble that `script-src 'self'` would kill, and loosening the
-  shipped policy to accommodate it would be the wrong trade. If you add a
-  third-party script, font host or analytics endpoint, the policy is where it
-  has to be allowed — and it will fail closed until you do.
+  `vite.config.ts`) — the _only_ delivery channel. Dev is unconstrained: Vite
+  serves an inline Fast Refresh preamble that `script-src 'self'` would kill,
+  and loosening the shipped policy to accommodate it would be the wrong trade.
+  If you add a third-party script, font host or analytics endpoint, the policy
+  is where it has to be allowed — and it will fail closed until you do.

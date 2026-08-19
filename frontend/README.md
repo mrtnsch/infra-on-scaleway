@@ -80,8 +80,12 @@ out of an S3-compatible bucket (Scaleway Object Storage). There is no server, no
 container and no runtime configuration.
 
 ```bash
-VITE_API_BASE_URL=https://api.example.com pnpm build
+mise run //frontend:deploy    # VITE_API_BASE_URL=<deployed backend> pnpm build, then upload
 ```
+
+The task reads the bucket and the backend's endpoint from the `iac/` live units,
+so no URL is copied by hand. `aws` uses `AWS_ACCESS_KEY_ID` /
+`AWS_SECRET_ACCESS_KEY`, which the repo-root `mise.toml` mirrors from `SCW_*`.
 
 Two things the bucket has to be told, because there is no web server left to do
 them:
@@ -91,26 +95,15 @@ bucket's _error document_ must be `index.html` (the index document is
 `index.html` too). Without it, reloading `/random` returns the bucket's own
 404 page instead of the app. Note the honest limitation of static hosting: a
 deep link is served with a `404` status even though the app renders correctly.
-Fixing the status needs a CDN rewrite in front (Scaleway Edge Services); nothing
-in this app can change it.
+Neither this app nor the CDN in front of it can change that — see the security
+headers note below.
 
-**2. Cache headers.** These are object metadata, set at upload time — a second
-`sync` pass, because the two halves of `dist/` want opposite answers:
-
-```bash
-# Content-hashed assets: safe to cache forever, a deploy renames them.
-aws s3 sync dist/ s3://$BUCKET/ --endpoint-url https://s3.fr-par.scw.cloud \
-  --exclude index.html --delete \
-  --cache-control 'public, max-age=31536000, immutable'
-
-# The shell points at those hashed names, so a stale copy pins a browser to the
-# previous deploy. It must never be cached, and it must be uploaded last.
-aws s3 cp dist/index.html s3://$BUCKET/index.html --endpoint-url https://s3.fr-par.scw.cloud \
-  --cache-control 'no-store'
-```
-
-`aws` reads `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, which the repo-root
-`mise.toml` already mirrors from the `SCW_*` pair.
+**2. Cache headers.** Object metadata, set at upload time, and the two halves of
+`dist/` want opposite answers: hashed assets cache forever because a deploy
+renames them, while `index.html` points at those names and must never cache — a
+stale copy pins a browser to the previous deploy. So: two passes, shell last.
+`deploy` does both, and the CDN honours the directives over its own TTL, so no
+purge is needed.
 
 **3. Security headers.** The Content-Security-Policy travels _inside_
 `index.html`, as a `<meta>` tag injected at build time by the `cspMeta` plugin
@@ -124,18 +117,21 @@ module and nothing else. `style-src` keeps `'unsafe-inline'`: React's `style`
 prop and Radix's positioning both emit inline style _attributes_, which that
 directive covers.
 
-What a meta tag **cannot** do, and therefore what belongs on a CDN in front
-(Scaleway Edge Services) as real response headers:
+What a meta tag cannot do, **nothing on this hosting path can do either**:
+Scaleway Edge Services has no header, rewrite or redirect capability in its API
+at all. So these are absent, knowingly:
 
-| Header                                       | Why it can't come from the bucket                             |
+| Header                                       | Status                                                        |
 | -------------------------------------------- | ------------------------------------------------------------- |
-| `Content-Security-Policy: frame-ancestors …` | Ignored in a `<meta>` tag; the browser says so in the console |
-| `X-Content-Type-Options: nosniff`            | Header-only                                                   |
-| `Referrer-Policy: no-referrer`               | Header-only                                                   |
-| `Strict-Transport-Security`                  | Header-only                                                   |
+| `Content-Security-Policy: frame-ancestors …` | Present in the meta tag but **ignored** — the console says so |
+| `X-Content-Type-Options: nosniff`            | Header-only, unavailable                                      |
+| `Referrer-Policy: no-referrer`               | Header-only, unavailable                                      |
+| `Strict-Transport-Security`                  | Header-only, unavailable                                      |
 
-The full policy is written out in `vite.config.ts` including `frame-ancestors`,
-so moving it to a response header later is a copy rather than a rewrite.
+So the site is unprotected against framing. `vite.config.ts` writes the full
+policy including `frame-ancestors`, so recovering these is a copy — but it needs
+an origin that can set headers, i.e. `dist/` behind an nginx container. That is
+the escape hatch, not a plan.
 
 ### Contract for the infra agent
 
@@ -148,5 +144,5 @@ so moving it to a response header later is a copy rather than a rewrite.
   `index.html`**.
 - Cache headers are the uploader's job — see above.
 - A CSP ships inside `index.html`; `frame-ancestors` and the other header-only
-  defences need a CDN in front. See above.
+  defences cannot be delivered on this hosting path at all. See above.
 - The backend must allow the site's origin via CORS.

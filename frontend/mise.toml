@@ -1,6 +1,8 @@
 [tools]
 node = "24"
 pnpm = "11"
+# The Scaleway CLI has no sync that sets per-object metadata (cache headers).
+awscli = "2"
 
 [tasks.verify]
 description = "What CI runs: orval + prettier + eslint + tsc + vitest"
@@ -20,4 +22,33 @@ efiles=$(staged '\.(ts|tsx|js|jsx|mjs|cjs)$')
 
 if [ -n "$pfiles" ]; then echo "$pfiles" | xargs pnpm exec prettier --check; fi
 if [ -n "$efiles" ]; then echo "$efiles" | xargs pnpm exec eslint; fi
+'''
+
+[tasks.deploy]
+description = "Build dist/ against the deployed backend and upload it to the site bucket"
+dir = "{{config_root}}"
+run = '''
+set -euo pipefail
+s3="https://s3.fr-par.scw.cloud"
+
+# The live units are the authoritative answer to where the site goes and which
+# backend it talks to.
+bucket=$(terragrunt --working-dir ../iac/live/dev/frontend output -raw bucket_name)
+api=$(terragrunt --working-dir ../iac/live/dev/backend output -raw custom_endpoint 2>/dev/null || true)
+if [ -z "$api" ] || [ "$api" = "null" ]; then
+  api=$(terragrunt --working-dir ../iac/live/dev/backend output -raw container_endpoint)
+fi
+
+VITE_API_BASE_URL="$api" pnpm build
+
+# Hashed assets are renamed by a deploy, so they cache forever; the shell points
+# at those names, so it must never cache and must go last.
+aws s3 sync dist/ "s3://$bucket/" --endpoint-url "$s3" \
+  --exclude index.html --delete \
+  --cache-control 'public, max-age=31536000, immutable'
+
+aws s3 cp dist/index.html "s3://$bucket/index.html" --endpoint-url "$s3" \
+  --cache-control 'no-store'
+
+echo "deployed to $(terragrunt --working-dir ../iac/live/dev/frontend output -raw site_url)"
 '''
