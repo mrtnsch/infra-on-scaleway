@@ -1,4 +1,9 @@
-variable "environment" {
-  description = "Environment name, used as the prefix for every resource"
+variable "name" {
+  description = "Name of the pipeline; conventionally <environment>-<workload>"
+  type        = string
+}
+
+variable "description" {
+  description = "What the pipeline fronts, shown in the console"
   type        = string
 }

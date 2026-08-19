@@ -12,8 +12,6 @@ dependencies {
 }
 
 inputs = {
-  # Unchanged from when the module hardcoded it: renaming the pipeline would
-  # replace it, and a new pipeline ID is a new CNAME target.
-  name        = "dev-joke-frontend"
-  description = "CDN and TLS for the Joke SPA"
+  name        = "dev-joke-api-k8s"
+  description = "WAF, cache and TLS for the Joke API on Kapsule"
 }

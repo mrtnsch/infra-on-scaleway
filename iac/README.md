@@ -10,15 +10,22 @@ iac/
 ├── catalog/modules/         # Reusable OpenTofu modules
 │   ├── shared_infra/        # State bucket, container registry, Edge Services plan
 │   ├── backend/             # VPC, managed PostgreSQL, Joke API container
-│   ├── frontend_deps/       # The SPA's Edge Services pipeline, applied first
-│   └── frontend/            # Site bucket, CDN stages and custom domain
+│   ├── frontend_deps/       # An Edge Services pipeline on its own, applied first
+│   ├── frontend/            # Site bucket, CDN stages and custom domain
+│   ├── kapsule/             # VPC, Kapsule cluster and pool, Load Balancer
+│   ├── kapsule_db/          # The k8s runtime's own managed PostgreSQL
+│   └── kapsule_edge/        # LB origin, WAF, cache, TLS and DNS stages
 └── live/                    # Environment configs (one state file per folder)
     ├── root.hcl             # Shared backend, provider and versions config
     ├── shared/              # Shared infra (state bucket, registry, Edge plan)
     ├── dev/
-    │   ├── backend/         # Joke API, dev environment
+    │   ├── backend/         # Joke API on Serverless Containers, dev environment
     │   ├── frontend-deps/   # The SPA's pipeline; gives the CNAME target
-    │   └── frontend/        # Joke SPA, dev environment
+    │   ├── frontend/        # Joke SPA, dev environment
+    │   ├── kapsule/         # Joke API on Kubernetes: cluster, node, LB
+    │   ├── kapsule-db/      # Its database, on its own Private Network
+    │   ├── kapsule-edge-deps/ # Its pipeline; gives the CNAME target
+    │   └── kapsule-edge/    # Its WAF and CDN stages
     └── prod/
 ```
 
@@ -119,6 +126,56 @@ iac/
   was enabled; once every unit has rewritten its state (any apply does,
   `-refresh-only` is enough), remove the fallback so plaintext is refused.
   Losing the passphrase means losing the state.
+- **Why a second runtime on Kapsule at all?**
+  The Edge Services WAF stage only accepts Load Balancer and bucket origins, and
+  a Serverless Container cannot back a Load Balancer. A WAF in front of the API
+  therefore means a runtime that can sit behind one.
+- **Why parallel rather than a migration?**
+  `dev/backend` keeps serving `jokes-api.…` while the k8s runtime proves itself
+  on `jokes-api-k8s.…`. DNS is the cutover lever, and the old runtime is the
+  rollback — there is no state to roll back to.
+- **Why does the k8s runtime share nothing with the backend module?**
+  Own VPC, Private Network and database: zero coupling means zero risk to the
+  running stack, and the two runtimes cannot reach each other's data by
+  construction — the same one-VPC-per-environment reasoning, one level up. The
+  price is a second db-dev-s and an empty database, so parity checks are
+  functional rather than data-identical.
+- **Why does OpenTofu create the Load Balancer instead of Kubernetes?**
+  Because its ID has to be an ordinary unit output: `dev/kapsule-edge` reads
+  `lb_id` from state like any other dependency, instead of someone pasting a
+  value the cloud controller manager invented between two applies. The Service
+  adopts the existing LB with the `scw-loadbalancer-id` annotation; without that
+  annotation on the *first* apply the CCM creates — and bills — a second one.
+- **Why is the LB's frontend a data source and not a resource?**
+  Frontends, backends and ACLs are the CCM's half of the split, created when the
+  Service is reconciled. Edge Services needs the frontend ID to know which port
+  to hit, so `kapsule_edge` reads it back with `scaleway_lb_frontends`. That is
+  also why this one unit cannot be planned before its dependencies exist: a
+  mocked LB ID answers 404, and a `precondition` turns the missing frontend into
+  "deploy the Service first" rather than an index error.
+- **Why does `scaleway_lb` set `ssl_compatibility_level` and ignore `tags`?**
+  Both are fields the CCM writes on the LB itself while reconciling. Stating the
+  same SSL level OpenTofu would otherwise drift away from, and ignoring tags,
+  keeps `plan` empty between deploys.
+- **Why `delete_additional_resources = false` on the cluster?**
+  `true` would have a cluster deletion take "additional" Load Balancers with it
+  — including the one OpenTofu owns and deletes itself. There are no PVCs, so
+  nothing else is left behind.
+- **Why an image pull secret when the registry is in the same project?**
+  Kapsule nodes carry no registry credentials of their own; Scaleway documents
+  the pull secret as required even for a namespace in the same project. The
+  deploy task creates it from `SCW_SECRET_KEY`, so it is never in git.
+- **Why kubectl and kustomize rather than Argo CD or the Helm provider?**
+  One app, one operator. `//backend:k8s-deploy` holds the line
+  `//frontend:deploy` already draws: the IaC owns the cluster, the Load Balancer
+  and the database, and never the workload. Driving Kubernetes from OpenTofu
+  would put pod-level churn into infrastructure state; GitOps tooling stays
+  additive later.
+- **Why is the pipeline module named `frontend_deps` when the API uses it too?**
+  It was always just "a pipeline on its own, applied first", and it now takes
+  `name` and `description` instead of hardcoding the SPA's. Renaming the module
+  would be cosmetic; renaming the *pipeline* would replace it, and a new
+  pipeline ID is a new CNAME target.
 - **Why does OpenTofu not upload `dist/`?**
   Filenames are content-hashed, so a resource per file would churn state on
   every build and still could not set two different `Cache-Control` values.
@@ -286,6 +343,79 @@ involved: `CORS_ALLOWED_ORIGINS` already names `https://jokes.martinschwarz.dev`
 
 `prod` becomes a copy of both frontend units with its own `bucket_name`, plus a
 second pipeline — which the Starter plan does not cover.
+
+## Deploying the Joke API on Kapsule
+
+A second, fully self-contained runtime for the same API on Kubernetes Kapsule,
+behind Edge Services with a WAF — alongside the serverless one, not replacing
+it. `dev/backend` keeps serving `jokes-api.martinschwarz.dev`; this one serves
+`jokes-api-k8s.martinschwarz.dev` and shares nothing with it: its own VPC,
+Private Network, database, Edge Services pipeline.
+
+```
+client → jokes-api-k8s.… (CNAME) → Edge pipeline #2
+       → DNS → TLS → cache → WAF → LB backend stage
+       → Scaleway Load Balancer (OpenTofu-owned, adopted by the CCM)
+       → Kapsule pool (1× DEV1-M) → joke-api pod
+       → own Private Network → own dev PostgreSQL
+```
+
+Four units, in this order — the manifests go on in the middle, because the
+Edge unit reads a Load Balancer frontend that only exists once the Service has
+been reconciled:
+
+```bash
+mise run //iac:apply:dev-kapsule             # ~5 min: VPC, cluster, node, LB
+mise run //iac:apply:dev-kapsule-db          # ~10 min, the database dominates
+mise run //iac:apply:dev-kapsule-edge-deps   # the pipeline, nothing else
+
+cd iac/live/dev/kapsule-edge-deps && terragrunt output -raw edge_cname_target
+# at your registrar: CNAME jokes-api-k8s -> that value, TTL 300
+dig jokes-api-k8s.martinschwarz.dev @1.1.1.1   # must resolve before continuing
+
+mise run //backend:image 0.0.1               # if the tag is not pushed yet
+mise run //backend:k8s-deploy 0.0.1          # cluster gets the workload
+
+mise run //iac:apply:dev-kapsule-edge        # WAF, cache, TLS, DNS stages
+curl https://jokes-api-k8s.martinschwarz.dev/jokes/random
+```
+
+`k8s-deploy` installs the kubeconfig (`scw k8s kubeconfig install`), creates the
+two Secrets from unit outputs, points `k8s/kustomization.yaml` at the tag it was
+given and applies. It never touches OpenTofu state — the same line
+`//frontend:deploy` draws. The tag change it writes is meant to be committed:
+it is this runtime's equivalent of `image_tag` in a `terragrunt.hcl`.
+
+Manifests live in `backend/k8s/`, documented in `backend/k8s/README.md`.
+
+### Hardening and parity
+
+- **The WAF starts in `log_only`.** It classifies and logs without blocking,
+  which is the only safe way to learn what paranoia level 1 does to real
+  traffic. Watch the pipeline's logs in Cockpit, then set `waf_mode = "enable"`
+  in `live/dev/kapsule-edge/terragrunt.hcl` and apply. A canned SQLi probe
+  (`?q=' OR 1=1--`) is the cheapest way to see the ruleset fire.
+- **The Load Balancer's own IP bypasses the WAF.** Restricting ingress to Edge
+  Services is `loadBalancerSourceRanges` on the Service — the cloud controller
+  manager turns that list into Load Balancer ACLs — but Scaleway does not
+  publish the ranges Edge Services fetches origins from, so the block sits
+  commented out in `service.yaml` until support provides them. Until then the
+  WAF is a monitor in front of a reachable origin, not a gate.
+- **Parity is functional, not data-identical.** The database starts empty:
+  compare `/actuator/health`, a joke CRUD round-trip and the RFC 9457 error
+  bodies against `https://jokes-api.martinschwarz.dev`, not row counts.
+
+### Cutover, or not
+
+Cutting over means repointing the `jokes-api` CNAME at pipeline #2's target and
+retiring `dev/backend`; copying the rows (`pg_dump` between the two databases)
+becomes a step only then. Abandoning means destroying `dev/kapsule-edge`,
+`dev/kapsule-edge-deps`, `dev/kapsule-db`, `dev/kapsule` and deleting the
+CNAME — the serverless stack never knew this existed.
+
+Cost while both run: ~€53/month on top of today's ~€51 (DEV1-M 14.75, LB-S
+16.79, db-dev-s + 10 GB ~12.50, additional pipeline 4.00, WAF from 4.00,
+flexible IP and cents-level extras ~1).
 
 ## Everyday tasks
 

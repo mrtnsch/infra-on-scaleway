@@ -83,3 +83,43 @@ run = "terragrunt --working-dir dev/frontend plan"
 description = "Apply dev/frontend. Needs the CNAME to resolve first."
 dir = "{{config_root}}/live"
 run = "terragrunt --working-dir dev/frontend apply"
+
+[tasks."plan:dev-kapsule"]
+description = "Preview dev/kapsule (VPC, Kapsule cluster and pool, Load Balancer)"
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/kapsule plan"
+
+[tasks."apply:dev-kapsule"]
+description = "Apply dev/kapsule. Creates billable resources."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/kapsule apply"
+
+[tasks."plan:dev-kapsule-db"]
+description = "Preview dev/kapsule-db (the k8s runtime's own PostgreSQL)"
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/kapsule-db plan"
+
+[tasks."apply:dev-kapsule-db"]
+description = "Apply dev/kapsule-db. Creates billable resources."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/kapsule-db apply"
+
+[tasks."plan:dev-kapsule-edge-deps"]
+description = "Preview dev/kapsule-edge-deps (the API's Edge Services pipeline). Apply before dev/kapsule-edge."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/kapsule-edge-deps plan"
+
+[tasks."apply:dev-kapsule-edge-deps"]
+description = "Apply dev/kapsule-edge-deps. Creates the pipeline whose ID is the CNAME target."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/kapsule-edge-deps apply"
+
+[tasks."plan:dev-kapsule-edge"]
+description = "Preview dev/kapsule-edge (LB origin, WAF, cache, TLS, DNS stages)"
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/kapsule-edge plan"
+
+[tasks."apply:dev-kapsule-edge"]
+description = "Apply dev/kapsule-edge. Needs the CNAME to resolve and the Service to be deployed."
+dir = "{{config_root}}/live"
+run = "terragrunt --working-dir dev/kapsule-edge apply"

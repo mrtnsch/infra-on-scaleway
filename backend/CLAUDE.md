@@ -25,6 +25,10 @@ Run from `backend/`. The Gradle wrapper is `./gradlew`.
 - **Build and push the deployment image:** `mise run //backend:image <tag>` — resolves the registry
   from the `shared` IaC unit and logs in itself. The tag must match `image_tag` in
   `iac/live/<env>/backend/terragrunt.hcl`, which is what actually selects the deployed build.
+- **Deploy the pushed tag to Kapsule:** `mise run //backend:k8s-deploy <tag>` — installs the
+  kubeconfig, builds the Secrets from `dev/kapsule-db`'s outputs and applies `k8s/`. It rewrites
+  the tag in `k8s/kustomization.yaml`; commit that. The serverless runtime is deployed instead by
+  bumping `image_tag` and applying — the two are independent.
 
 > ktlint/format race: don't chain `format` and `check` in one Gradle invocation — they have no
 > ordering dependency and may run out of order. Run format first, then check, as separate commands.

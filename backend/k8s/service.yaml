@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: joke-api
+  labels:
+    app.kubernetes.io/name: joke-api
+  annotations:
+    # Set by //backend:k8s-deploy from live/dev/kapsule's `lb_id` output. It has
+    # to be on the very first apply: without it the cloud controller manager
+    # creates — and bills — a second Load Balancer of its own. The placeholder
+    # is overwritten by the generated overlay, never applied as-is.
+    service.beta.kubernetes.io/scw-loadbalancer-id: SET-BY-DEPLOY-TASK
+    # The origin is Edge Services, which terminates TLS; the hop to the LB is
+    # plain HTTP, and HTTP forwarding is what makes X-Forwarded-For work.
+    service.beta.kubernetes.io/scw-loadbalancer-protocol-http: "true"
+    service.beta.kubernetes.io/scw-loadbalancer-health-check-type: http
+    # Method and code are documented as required alongside an http health check.
+    service.beta.kubernetes.io/scw-loadbalancer-health-check-http-uri: /actuator/health/readiness
+    service.beta.kubernetes.io/scw-loadbalancer-health-check-http-method: GET
+    service.beta.kubernetes.io/scw-loadbalancer-health-check-http-code: "200"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: joke-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  # The WAF is bypassable via the Load Balancer's own public IP, so ingress
+  # should be restricted to Edge Services. The cloud controller manager turns
+  # this list into Load Balancer ACLs — but Scaleway does not publish the
+  # ranges Edge Services fetches origins from, so it stays empty until support
+  # gives them. Filling it in is the last step of the hardening pass.
+  # loadBalancerSourceRanges:
+  #   - 0.0.0.0/0

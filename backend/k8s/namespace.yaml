@@ -1,0 +1,6 @@
+# Applied on its own before the rest: the deploy task creates the two Secrets
+# inside it, and they must exist before the Deployment starts a pod.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: joke-api

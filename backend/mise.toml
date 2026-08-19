@@ -1,3 +1,8 @@
+[tools]
+kubectl  = "1.34"
+kustomize = "5"
+scaleway = "2.60.0"
+
 [tasks.image]
 description = "Build the backend image and push it, e.g. `mise run //backend:image 0.0.2`"
 dir = "{{config_root}}"
@@ -15,4 +20,69 @@ docker build -t "$image" .
 docker push "$image"
 
 echo "pushed $image"
+'''
+
+[tasks.k8s-deploy]
+description = "Deploy the backend to the Kapsule cluster, e.g. `mise run //backend:k8s-deploy 0.0.2`"
+dir = "{{config_root}}"
+usage = 'arg "<tag>" help="Image tag to deploy; must already be pushed with //backend:image"'
+run = '''
+set -euo pipefail
+
+live=../iac/live
+
+# Every environment-specific value comes from a unit's state, so nothing here
+# is pasted by hand — the same line //frontend:deploy draws.
+registry=$(terragrunt --working-dir "$live/shared" output -raw registry_endpoint)
+cluster=$(terragrunt --working-dir "$live/dev/kapsule" output -raw cluster_id)
+lb=$(terragrunt --working-dir "$live/dev/kapsule" output -raw lb_id)
+
+# Cluster IDs are regional ({region}/{uuid}); the CLI takes the two apart.
+scw k8s kubeconfig install "${cluster##*/}" region="${cluster%%/*}"
+
+kubectl apply -f k8s/namespace.yaml
+
+# Kapsule nodes have no registry credentials of their own, not even for a
+# namespace in the same project.
+kubectl -n joke-api create secret docker-registry scw-registry \
+  --docker-server="${registry%%/*}" \
+  --docker-username=nologin \
+  --docker-password="$SCW_SECRET_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n joke-api create secret generic joke-api-db \
+  --from-literal=DB_URL="$(terragrunt --working-dir "$live/dev/kapsule-db" output -raw db_url)" \
+  --from-literal=DB_USERNAME="$(terragrunt --working-dir "$live/dev/kapsule-db" output -raw db_username)" \
+  --from-literal=DB_PASSWORD="$(terragrunt --working-dir "$live/dev/kapsule-db" output -raw db_password)" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# The deployed tag is recorded in git, like image_tag in the serverless
+# runtime's terragrunt.hcl. Commit the change this makes.
+(cd k8s && kustomize edit set image "joke-api=$registry/joke-api:$usage_tag")
+
+# The Load Balancer ID is state, not a constant, so the annotation that adopts
+# it is generated rather than committed.
+# Generated outside k8s/: an overlay nested inside its own base is a cycle.
+mkdir -p build/k8s
+cat > build/k8s/service-lb.yaml <<PATCH
+apiVersion: v1
+kind: Service
+metadata:
+  name: joke-api
+  annotations:
+    service.beta.kubernetes.io/scw-loadbalancer-id: $lb
+PATCH
+cat > build/k8s/kustomization.yaml <<KUSTOMIZATION
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../k8s
+patches:
+  - path: service-lb.yaml
+KUSTOMIZATION
+
+kubectl apply -k build/k8s
+kubectl -n joke-api rollout status deployment/joke-api --timeout=10m
+
+echo "deployed $registry/joke-api:$usage_tag to $(terragrunt --working-dir "$live/dev/kapsule" output -raw lb_ip)"
 '''

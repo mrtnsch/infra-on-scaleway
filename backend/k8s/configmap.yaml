@@ -1,0 +1,15 @@
+# The non-secret half of the container's environment — the same values the
+# serverless runtime gets from `environment_variables` in its terragrunt.hcl.
+# Everything infrastructure-derived (DB_URL, DB_USERNAME, DB_PASSWORD) is in
+# the Secret the deploy task builds from unit outputs, so nothing here changes
+# when the database is replaced.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: joke-api
+data:
+  SPRING_PROFILES_ACTIVE: prod
+  CORS_ALLOWED_ORIGINS: https://jokes.martinschwarz.dev
+  # application-prod.yaml asks for 30 connections, which a db-dev-s cannot give
+  # once there is more than one replica.
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "10"
