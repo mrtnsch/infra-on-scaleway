@@ -1,0 +1,6 @@
+.idea/
+.terraform
+.terragrunt-cache
+.env.local
+*.tfstate
+*.tfstate.backup

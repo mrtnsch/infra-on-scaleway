@@ -1,0 +1,24 @@
+monorepo_root = true
+
+[monorepo]
+config_roots = ["iac", "frontend"]
+
+[tools]
+# >= 1.12 required: `use_lockfile` (native S3 state locking) does not exist before it.
+opentofu   = "1.12.5"
+terragrunt = "1.1.3"
+scaleway   = "2.60.0"
+
+[env]
+_.file = ".env.local"
+
+# Region/zone live in the generated provider block, not here: setting them as
+# SCW_* too makes the provider warn about multiple credential sources.
+# The s3 backend only reads AWS-named credentials; mirror the Scaleway pair.
+AWS_ACCESS_KEY_ID     = "$SCW_ACCESS_KEY"
+AWS_SECRET_ACCESS_KEY = "$SCW_SECRET_KEY"
+AWS_REGION            = "fr-par"
+
+[settings]
+experimental     = true
+env_shell_expand = true
