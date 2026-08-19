@@ -1,0 +1,6 @@
+# pnpm 11 refuses to run a dependency's install scripts unless it is listed
+# here. These four are native/binary packages that genuinely need theirs.
+allowBuilds:
+  esbuild: true
+  lightningcss: true
+  unrs-resolver: true
