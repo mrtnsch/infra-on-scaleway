@@ -8,6 +8,12 @@ terraform {
 
 dependency "shared" {
   config_path = "../../shared"
+
+  # Lets this unit plan before shared is applied; apply needs the real output.
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs = {
+    registry_endpoint = "rg.fr-par.scw.cloud/mock"
+  }
 }
 
 inputs = {

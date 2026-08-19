@@ -37,6 +37,9 @@ resource "scaleway_rdb_instance" "main" {
   volume_type               = "sbs_5k"
   volume_size_in_gb         = var.db_volume_size_gb # must be a multiple of 5
 
+  # Opt-in on Scaleway; enabling it on an existing instance means a migration.
+  encryption_at_rest = true
+
   # IPAM (not a static ip_net) is what registers the endpoint in VPC DNS —
   # without it the container cannot resolve or route to the database.
   private_network {

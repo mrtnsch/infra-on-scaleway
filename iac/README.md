@@ -110,6 +110,15 @@ iac/
   It is a project-wide billing relationship, not a per-pipeline resource.
   Starter covers one pipeline, so prod is an extra charge or an upgrade — and
   destroying `shared` cancels it for every pipeline.
+- **Why client-side state encryption?**
+  The state files hold every generated secret — both database passwords and
+  the container's secret environment variables. `root.hcl` generates an
+  `encryption` block that derives an AES-GCM key from `TF_VAR_state_passphrase`
+  (pbkdf2), so the objects in the state bucket are ciphertext. The
+  `unencrypted` fallback is what still reads state written before encryption
+  was enabled; once every unit has rewritten its state (any apply does,
+  `-refresh-only` is enough), remove the fallback so plaintext is refused.
+  Losing the passphrase means losing the state.
 - **Why does OpenTofu not upload `dist/`?**
   Filenames are content-hashed, so a resource per file would churn state on
   every build and still could not set two different `Cache-Control` values.
@@ -138,8 +147,12 @@ mise install
 Create an API key at https://console.scaleway.com/iam/api-keys, then:
 
 ```bash
-cp .env.local.example .env.local   # fill in the four values
+cp .env.local.example .env.local   # fill in the five values
 ```
+
+`TF_VAR_state_passphrase` is the state-encryption passphrase (16+ characters).
+It is a secret like the API key — and unlike the key it is not replaceable:
+without it the state cannot be decrypted.
 
 mise mirrors `SCW_ACCESS_KEY`/`SCW_SECRET_KEY` into `AWS_ACCESS_KEY_ID`/
 `AWS_SECRET_ACCESS_KEY`, because the s3 backend only reads the AWS names while
@@ -180,9 +193,10 @@ mise run //iac:plan:dev-backend              # review before the first apply
 mise run //iac:apply:dev-backend             # ~10 min, the database dominates
 ```
 
-`plan:dev-backend` fails until `shared` has been applied — it reads `registry_endpoint`
-off that unit's state, and the output does not exist before then. That is the
-ordering, not a fault.
+`plan:dev-backend` plans before `shared` is applied only because the dependency
+carries `mock_outputs` — such a plan shows a placeholder registry endpoint.
+`apply` refuses the mock and needs the real output, so `shared` still goes
+first.
 
 ### Custom domain
 
@@ -240,10 +254,10 @@ mise run //frontend:deploy                   # pnpm build + upload
 
 Unlike the backend's domain, no apply here is expected to fail: everything that
 needs DNS is in `dev/frontend`, applied only once DNS answers. `dev/frontend`
-reads the pipeline off `dev/frontend-deps`' state, so — like `dev/backend` and
-`shared` — it cannot even plan until that unit is applied. The usual DNS
-constraints still hold: set the low TTL before creating the record, and allow
-`letsencrypt.org` in any `CAA` record on the zone.
+reads the pipeline off `dev/frontend-deps`' state; `mock_outputs` let it plan
+before that unit is applied, but the apply needs the real pipeline. The usual
+DNS constraints still hold: set the low TTL before creating the record, and
+allow `letsencrypt.org` in any `CAA` record on the zone.
 
 Only the pipeline lives in `frontend_deps`, and that is a hard limit rather than
 a choice. Certificate issuance is lazy — a TLS stage created with
@@ -254,11 +268,7 @@ the origin**: an unlinked TLS stage makes `scaleway_edge_services_head_stage`
 fail with `next stage missing`, and Scaleway then refuses to delete that stage
 while the DNS stage still points at it (a bare HTTP 500). Since the next stage
 is the cache stage, and that needs the bucket, the TLS stage belongs in
-`dev/frontend`. `dev/frontend`
-reads the pipeline off `dev/frontend-deps`' state, so — like `dev/backend` and
-`shared` — it cannot even plan until that unit is applied. The usual DNS
-constraints still hold: set the low TTL before creating the record, and allow
-`letsencrypt.org` in any `CAA` record on the zone.
+`dev/frontend`.
 
 Afterwards, check `edge_cname_target` against `dev/frontend`'s `default_fqdn`:
 the former is a string built from the pipeline ID, and only that comparison

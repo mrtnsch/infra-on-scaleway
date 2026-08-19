@@ -25,11 +25,11 @@ description = "Build dist/ against the deployed backend and upload it to the sit
 dir = "{{config_root}}"
 run = '''
 set -euo pipefail
-s3="https://s3.fr-par.scw.cloud"
 
-# The live units are the authoritative answer to where the site goes and which
-# backend it talks to.
+# The live units are the authoritative answer to where the site goes, which
+# backend it talks to and which endpoint the upload goes through.
 bucket=$(terragrunt --working-dir ../iac/live/dev/frontend output -raw bucket_name)
+s3=$(terragrunt --working-dir ../iac/live/dev/frontend output -raw bucket_api_endpoint)
 api=$(terragrunt --working-dir ../iac/live/dev/backend output -raw custom_endpoint 2>/dev/null || true)
 if [ -z "$api" ] || [ "$api" = "null" ]; then
   api=$(terragrunt --working-dir ../iac/live/dev/backend output -raw container_endpoint)

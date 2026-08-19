@@ -103,7 +103,9 @@ headers note below.
 renames them, while `index.html` points at those names and must never cache — a
 stale copy pins a browser to the previous deploy. So: two passes, shell last.
 `deploy` does both, and the CDN honours the directives over its own TTL, so no
-purge is needed.
+purge is needed. The first pass syncs with `--delete`, so the previous deploy's
+hashed assets vanish immediately — a tab that loaded the app before the deploy
+can 404 on a lazy-loaded chunk until it reloads. Accepted, like the other gaps.
 
 **3. Security headers.** The Content-Security-Policy travels _inside_
 `index.html`, as a `<meta>` tag injected at build time by the `cspMeta` plugin

@@ -23,3 +23,8 @@ output "bucket_website_endpoint" {
   description = "Bucket website endpoint; bypasses the CDN"
   value       = scaleway_object_bucket_website_configuration.site.website_endpoint
 }
+
+output "bucket_api_endpoint" {
+  description = "S3 API endpoint //frontend:deploy uploads through"
+  value       = scaleway_object_bucket.site.api_endpoint
+}

@@ -62,3 +62,44 @@ terraform {
 }
 VERSIONS
 }
+
+# The state holds every generated secret (DB passwords, container secret envs),
+# so it is encrypted client-side before it reaches the bucket. The unencrypted
+# fallback reads state written before encryption existed; remove it once every
+# unit has rewritten its state (any apply, -refresh-only is enough).
+generate "state_encryption" {
+  path      = "encryption.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<ENCRYPTION
+variable "state_passphrase" {
+  description = "Passphrase the state encryption key is derived from; set via TF_VAR_state_passphrase in .env.local"
+  type        = string
+  sensitive   = true
+}
+
+terraform {
+  encryption {
+    key_provider "pbkdf2" "state" {
+      passphrase = var.state_passphrase
+    }
+
+    method "aes_gcm" "state" {
+      keys = key_provider.pbkdf2.state
+    }
+
+    method "unencrypted" "migrate" {}
+
+    state {
+      method = method.aes_gcm.state
+      fallback {
+        method = method.unencrypted.migrate
+      }
+    }
+
+    plan {
+      method = method.aes_gcm.state
+    }
+  }
+}
+ENCRYPTION
+}
